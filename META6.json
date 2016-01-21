@@ -4,7 +4,7 @@
     "version" : "0.0.1",
     "auth" : "github:salortiz",
     "description" : "Native bindings for OpenLDAP's LMDB library",
-    "depends" : [ "Nativecall" ],
+    "depends" : [ ],
     "build-depends" : [ ],
     "test-depends" : [
 	"Test", "File::Temp"
