@@ -173,6 +173,8 @@ our class Env {
 	$p.deref;
     }
 
+    our class DB { ... };
+
     our class Txn {
 	 class MDB_txn is repr('CPointer') {
 	    sub mdb_txn_begin(MDB_env, Pointer, uint64, Pointer[Pointer] is rw)
@@ -231,6 +233,14 @@ our class Env {
 		X::LMDB::LowLevel.new(code => $_, what => 'db-open').fail;
 	    }
 	    $rp.Int;
+	}
+
+	method open(Str :$name, Int :$flags) {
+	    DB.new(Txn => self, dbi => self.db-open(:$name, :$flags));
+	}
+
+	method opened(Int $dbi) {
+	    DB.new(Txn => self, :$dbi);
 	}
 
 	sub mdb_put(MDB_txn, uint32, MDB-val, MDB-val, int32)
@@ -299,6 +309,29 @@ our class Env {
 
     method begin-txn(Int :$flags, Bool :$subtxn) {
 	Txn.new(self, :$subtxn, :$flags);
+    }
+
+    # A high level class for encapsulates a Txn and a dbi
+    class DB does Associative {
+	has Txn $.Txn;
+	has Int $.dbi;
+
+	multi method AT-KEY(::?CLASS:D: $key) {
+	    my \SELF = self;
+	    Proxy.new(
+		FETCH => method () { SELF.Txn.get(SELF.dbi, $key) },
+		STORE => method ($val) { SELF.Txn.put(SELF.dbi, $key, $val) }
+	    )
+	}
+
+	multi method EXISTS-KEY(::?CLASS:D: $key) {
+	    $!Txn.get($!dbi, $key).defined;
+	}
+
+	multi method DELETE-KEY(::?CLASS:D: $key) {
+	    $!Txn.del($!dbi, $key)
+	}
+
     }
 }
 
