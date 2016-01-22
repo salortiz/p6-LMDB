@@ -30,8 +30,8 @@ my enum DbFlag is export(:flags) (
 );
 
 my class MDB-val is repr('CStruct') {
-    has size_t		$!mv_size;
-    has CArray[uint8]	$!mv_buff;
+    has size_t		$.mv_size;
+    has CArray[uint8]	$.mv_buff;
 
     submethod BUILD(CArray[uint8] :$mv_buff) {
 	$!mv_size = $mv_buff.elems;
@@ -181,8 +181,8 @@ our class Env {
 		returns int32 is native(LIB) { * };
 	    method new($env, Pointer $parent, $flags) {
 		my Pointer[Pointer] $p .= new;
-		if mdb_txn_begin($env, $parent, $flags, $p) -> $_ {
-		    X::LMDB::LowLevel.new(code => $_, :what<Can't create>).fail;
+		if mdb_txn_begin($env, $parent, $flags, $p) -> $code {
+		    X::LMDB::LowLevel.new(:$code, :what<Can't create>).fail;
 		}
 		nativecast(MDB_txn, $p.deref);
 	    }
@@ -191,7 +191,7 @@ our class Env {
 	has Env $!Env;
 	has MDB_txn $!txn;
 
-	method Bool(Txn:D:) { $!txn.defined };  # Still alive?
+	multi method Bool(::?CLASS:D:) { $!txn.defined };  # Still alive?
 
 	submethod BUILD(:$!Env, :$!txn) { }
 	method new(
@@ -203,24 +203,24 @@ our class Env {
 	    self.bless(Env => $Env, txn => MDB_txn.new($Env.env, $parent, $flags || 0));
 	}
 
-	method commit(Txn:D: --> 1) {
+	method commit(::?CLASS:D: --> True) {
 	    sub mdb_txn_commit(MDB_txn)
 		returns int32 is native(LIB) { * };
 
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
-	    if mdb_txn_commit($!txn) -> $_ {
-		X::LMDB::LowLevel.new(code => $_, what => 'commit').fail;
+	    if mdb_txn_commit($!txn) -> $code {
+		X::LMDB::LowLevel.new(:$code, :what<commit>).fail;
 	    }
 	    $!txn = Nil;
 	}
 
-	method abort(Txn:D:) {
+	method abort(::?CLASS:D: --> True) {
 	    sub mdb_txn_abort(MDB_txn)
 		returns int32 is native(LIB) { * };
 
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
-	    if mdb_txn_abort($!txn) -> $_ {
-		X::LMDB::LowLevel.new(code => $_, what => 'abort').fail;
+	    if mdb_txn_abort($!txn) -> $code {
+		X::LMDB::LowLevel.new(:$code, :what<abort>).fail;
 	    }
 	    $!txn = Nil;
 	}
@@ -231,8 +231,8 @@ our class Env {
 
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
 	    my Pointer[int32] $rp .= new;
-	    if mdb_dbi_open($!txn, $name, $flags || 0, $rp) -> $_ {
-		X::LMDB::LowLevel.new(code => $_, what => 'db-open').fail;
+	    if mdb_dbi_open($!txn, $name, $flags || 0, $rp) -> $code {
+		X::LMDB::LowLevel.new(:$code, :what<db-open>).fail;
 	    }
 	    $rp.Int;
 	}
@@ -248,42 +248,44 @@ our class Env {
 	sub mdb_put(MDB_txn, uint32, MDB-val, MDB-val, int32)
 	    returns int32 is native(LIB) { * };
 
-	multi method put(Txn:D: Int $dbi, Str $key, Buf $val) {
+	multi method put(::?CLASS:D: Int $dbi, Str $key, Buf $val) {
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
-	    if mdb_put($!txn, $dbi, MDB-val.new-from-str($key), MDB-val.new-from-buf($val), 0) -> $_ {
-		X::LMDB::LowLevel.new(code => $_, what => 'put').fail;
-	    }
+	    if mdb_put($!txn, $dbi,
+		       MDB-val.new-from-str($key), MDB-val.new-from-buf($val),
+		       0
+	    ) -> $code { X::LMDB::LowLevel.new(:$code, :what<put>).fail }
 	    $val;
 	}
-	multi method put(Txn:D: Int $dbi, Str $key, Str $val) {
+	multi method put(::?CLASS:D: Int $dbi, Str $key, Str $val) {
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
-	    if mdb_put($!txn, $dbi, MDB-val.new-from-str($key), MDB-val.new-from-str($val), 0) -> $_ {
-		X::LMDB::LowLevel.new(code => $_, what => 'put').fail;
-	    }
+	    if mdb_put($!txn, $dbi,
+		       MDB-val.new-from-str($key), MDB-val.new-from-str($val),
+		       0
+	    ) -> $code { X::LMDB::LowLevel.new(:$code, :what<put>).fail }
 	    $val;
 	}
 
 	sub mdb_get(MDB_txn, uint32, MDB-val, MDB-val)
 	    returns int32 is native(LIB) { * };
 
-	multi method get(Txn:D: Int $dbi, Str $key) {
+	multi method get(::?CLASS:D: Int $dbi, Str $key) {
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
-	    my $res = MDB-val.new();
-	    if mdb_get($!txn, $dbi, MDB-val.new-from-str($key), $res) -> $_ {
-		X::LMDB::LowLevel.new(code => $_, what => 'get').fail;
+	    my $res = MDB-val.new;
+	    if mdb_get($!txn, $dbi, MDB-val.new-from-str($key), $res) -> $code {
+		X::LMDB::LowLevel.new(:$code, :what<get>).fail;
 	    }
 	    $res;
 	}
-	multi method get(Txn:D: Int $dbi, Str $key, Any $val is rw) {
+	multi method get(::?CLASS:D: Int $dbi, Str $key, Any $val is rw) {
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
-	    my $res = MDB-val.new();
-	    if mdb_get($!txn, $dbi, MDB-val.new-from-str($key), $res) -> $_ {
-		X::LMDB::LowLevel.new(code => $_, what => 'get').fail;
+	    my $res = MDB-val.new;
+	    if mdb_get($!txn, $dbi, MDB-val.new-from-str($key), $res) -> $code {
+		X::LMDB::LowLevel.new(:$code, :what<get>).fail;
 	    }
 	    $val = $res;
 	}
 
-	method del(::?CLASS:D: Int $dbi, Str $key, Any $val = Nil) {
+	method del(::?CLASS:D: Int $dbi, Str $key, Any $val = Nil --> True) {
 	    sub mdb_del(MDB_txn, uint32, MDB-val, MDB-val)
 		returns int32 is native(LIB) { * };
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
@@ -293,16 +295,15 @@ our class Env {
 	    if mdb_del($!txn, $dbi, MDB-val.new-from-str($key), $match) -> $code {
 		X::LMDB::LowLevel.new(:$code, :what<del>).fail;
 	    }
-	    True;
 	}
 
-	method stat(Txn:D: Int $dbi) {
+	method stat(::?CLASS:D: Int $dbi) {
 	    sub mdb_stat(MDB_txn, uint32, MDB-stat)
 		returns int32 is native(LIB) { * };
 
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
-	    if mdb_stat($!txn, $dbi, my MDB-stat $a .= new) -> $_ {
-		X::LMDB::LowLevel.new(code => $_, what => 'stat').fail;
+	    if mdb_stat($!txn, $dbi, my MDB-stat $a .= new) -> $code {
+		X::LMDB::LowLevel.new(:$code, :what<stat>).fail;
 	    }
 	    Map.new: $a.^attributes.map: { .name.substr(5) => .get_value($a) };
 	}
