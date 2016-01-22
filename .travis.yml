@@ -1,7 +1,8 @@
 languaje: perl6
 sudo: true
 before_install:
-    - sudo apt-get install -qq -y liblmdb
+    - sudo apt-get -qq update
+    - sudo apt-get install -qq -y liblmdb-dev
 perl6:
     - latest
     - 2015.11
