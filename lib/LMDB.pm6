@@ -191,6 +191,8 @@ our class Env {
 	has Env $!Env;
 	has MDB_txn $!txn;
 
+	method Bool(Txn:D:) { $!txn.defined };  # Still alive?
+
 	submethod BUILD(:$!Env, :$!txn) { }
 	method new(
 	    Env $Env,
