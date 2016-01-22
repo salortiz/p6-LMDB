@@ -69,11 +69,8 @@ my class MDB-envinfo is repr('CStruct') {
     has uint32  $.me_numreaders;
 }
 
-my sub mdb_version(Pointer[int32] is rw, Pointer[int32] is rw, Pointer[int32] is rw)
-    returns Str is native(LIB) { ... };
 
 my sub mdb_strerror(int32) returns Str is native(LIB) { * };
-
 
 package GLOBAL::X::LMDB {
 # Our exceptions
@@ -95,6 +92,9 @@ package GLOBAL::X::LMDB {
     }
 }
 
+
+my sub mdb_version(Pointer[int32] is rw, Pointer[int32] is rw, Pointer[int32] is rw)
+    returns Str is native(LIB) { ... };
 
 our sub version() {
     my $res = mdb_version(
