@@ -4,7 +4,11 @@ use NativeCall;
 
 unit module LMDB:ver<0.0.1>;
 
-constant LIB = ('lmdb', v0.0.0);
+sub MyLibName {
+    %*ENV<LIBLMDB> || 'liblmdb.so';
+}
+
+constant LIB = &MyLibName;
 
 my enum  EnvFlag is export(:flags) (
     MDB_FIXEDMAP    => 0x01,
