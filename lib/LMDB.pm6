@@ -1,11 +1,11 @@
 use v6;
 
-use NativeCall;
+use NativeCall :ALL;
 
 unit module LMDB:ver<0.0.1>;
 
 sub MyLibName {
-    %*ENV<LIBLMDB> || 'liblmdb.so';
+    %*ENV<LIBLMDB> || guess_library_name(('lmdb',v0.0.0));
 }
 
 constant LIB = &MyLibName;
@@ -115,8 +115,8 @@ our class Env {
 	    returns int32 is native(LIB) { * };
 	method new() {
 	    my Pointer[Pointer] $p .= new;
-	    if mdb_env_create($p) -> $_ {
-		X::LMDB::LowLevel.new(code => $_, :what<Can't create>).fail;
+	    if mdb_env_create($p) -> $code {
+		X::LMDB::LowLevel.new(:$code, :what<Can't create>).fail;
 	    }
 	    nativecast(MDB_env, $p.deref);
 	}
@@ -142,8 +142,8 @@ our class Env {
 	mdb_env_set_mapsize($!env, $size);
 	mdb_env_set_maxreaders($!env, $maxreaders) if $maxreaders;
 	mdb_env_set_maxdbs($!env, $maxdbs) if $maxdbs;
-	if mdb_env_open($!env, $path, $flags || 0, 0o777) -> $_ {
-	    X::LMDB::LowLevel.new(code => $_, what => "Can't open $path").fail;
+	if mdb_env_open($!env, $path, $flags || 0, 0o777) -> $code {
+	    X::LMDB::LowLevel.new(:$code, what => "Can't open $path").fail;
 	}
 	self;
     }

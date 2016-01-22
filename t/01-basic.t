@@ -2,7 +2,7 @@ use v6;
 use Test;
 use File::Temp;
 
-plan 49;
+plan 50;
 
 use-ok 'LMDB';
 
@@ -32,8 +32,8 @@ use-ok 'LMDB';
     isa-ok $lmdb, LMDB::Env,		'Is a LMDB::Env';
 
     is $dir, $lmdb.get-path,		'Can get-path';
-    ok { "$dir/data.mdb".IO ~~ :e },	'Data file created';
-    ok { "$dir/lock.mdb".IO ~~ :e },	'Lock file created';
+    ok "$dir/data.mdb".IO ~~ :e,	'Data file created';
+    ok "$dir/lock.mdb".IO ~~ :e,	'Lock file created';
 
     # Basic environment info from native mdb_env_info
     isa-ok (my $info = $lmdb.info), Map, 'Info is-a Map';
@@ -60,7 +60,7 @@ use-ok 'LMDB';
 	my $dbi = $Txn.db-open(name => 'NAMED');
 	ok not $dbi.defined,		    'Should fail';
 	is $dbi.WHAT, Failure,		    'Failure reported';
-	ok { $dbi.handled },		    'Now handled';
+	ok $dbi.Int ~~ Int,		    'Now handled';
 	my $e = $dbi.exception;
 	ok $e ~~ X::LMDB::LowLevel,	    'right exception type';
 	like $e.message,  /MDB_DBS_FULL/,   'Expected';
