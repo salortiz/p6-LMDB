@@ -271,6 +271,19 @@ our class Env {
 	    $val = $res;
 	}
 
+	method del(::?CLASS:D: Int $dbi, Str $key, Any $val = Nil) {
+	    sub mdb_del(MDB_txn, uint32, MDB-val, MDB-val)
+		returns int32 is native(LIB) { * };
+	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
+	    my $match = $val.defined ?? (
+		$val ~~ Buf ?? MDB-val.new-from-buf($val) !! MDB-val.new-from-str(~$val)
+	    ) !! MDB-val.new;
+	    if mdb_del($!txn, $dbi, MDB-val.new-from-str($key), $match) -> $code {
+		X::LMDB::LowLevel.new(:$code, :what<del>).fail;
+	    }
+	    True;
+	}
+
 	method stat(Txn:D: Int $dbi) {
 	    sub mdb_stat(MDB_txn, uint32, MDB-stat)
 		returns int32 is native(LIB) { * };
