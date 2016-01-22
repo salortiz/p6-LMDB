@@ -2,7 +2,7 @@ use v6;
 use Test;
 use File::Temp;
 
-plan 42;
+plan 49;
 
 use-ok 'LMDB';
 
@@ -36,7 +36,7 @@ use-ok 'LMDB';
     ok { "$dir/lock.mdb".IO ~~ :e },	'Lock file created';
 
     # Basic environment info from native mdb_env_info
-    isa-ok (my $info = $lmdb.info), Map, 'Info is-a Seq';
+    isa-ok (my $info = $lmdb.info), Map, 'Info is-a Map';
     my %info = $info;
     for <mapaddr mapsize last_pgno last_txnid maxreaders numreaders> {
 	ok %info{$_}:exists,		"Info has $_"
@@ -51,6 +51,7 @@ use-ok 'LMDB';
 
     # Need a Transaction
     my $Txn = $lmdb.begin-txn;
+    ok ?$Txn,				'Alive Txn';
     isa-ok $Txn, LMDB::Env::Txn;
 
     # This is a simple db, only one unamed db allowed
@@ -96,10 +97,27 @@ use-ok 'LMDB';
     is $Txn.stat($dbi)<entries>, 3,	'All in';
 
     ok $Txn.commit,			'Commited';
+    ok !$Txn,				'Terminated';
 
     throws-like {
         $Txn.commit;
     }, X::LMDB::TerminatedTxn,		"Can't commit a terminated Txn";
+
+    $Txn = $lmdb.begin-txn;
+    ok ?$Txn,				'Alive';
+
+    # Now at high level
+    my $DB = $Txn.opened($dbi);
+
+    is $DB<aKey>, 'aValue',		'Get';
+    ok $DB<uKey>:exists,		'Exists';
+    ok $DB<uKey>:delete,		'Delete';
+    ok not $DB<uKey>:exists,		'Deleted';
+
+    # Testing direct memory access
+    is $DB<vKey>.mv_buff[9..12]
+       .map({($_ % 0x100).fmt('%x')})
+       .join,	    <deadbeaf>,		'Woow!';
 
     diag 'To be continued...';
 }
