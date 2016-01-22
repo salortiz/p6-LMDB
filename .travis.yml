@@ -1,4 +1,4 @@
-languaje: perl6
+language: perl6
 sudo: true
 dist: trusty
 before_install:
