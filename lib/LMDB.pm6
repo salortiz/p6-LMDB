@@ -163,6 +163,8 @@ our sub version() {
     $res;
 }
 
+our role dbi { }; # Used as a guard
+
 our class Env {
     class MDB_env is repr('CPointer') {
 	sub mdb_env_create(Pointer[Pointer] is rw)
@@ -292,21 +294,21 @@ our class Env {
 	    if mdb_dbi_open($!txn, $name, $flags || 0, $rp) -> $code {
 		X::LMDB::LowLevel.new(:$code, :what<db-open>).fail;
 	    }
-	    $rp.Int;
+	    $rp.Int but dbi;
 	}
 
 	method open(Str :$name, Int :$flags) {
 	    DB.new(Txn => self, dbi => self.db-open(:$name, :$flags));
 	}
 
-	method opened(Int $dbi) {
+	method opened(dbi $dbi) {
 	    DB.new(Txn => self, :$dbi);
 	}
 
 	sub mdb_put(MDB_txn, uint32, MDB-val, MDB-val, int32)
 	    returns int32 is native(LIB) { * };
 
-	multi method put(::?CLASS:D: Int $dbi, Str $key, Buf $val) {
+	multi method put(::?CLASS:D: dbi $dbi, Str $key, Buf $val) {
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
 	    if mdb_put($!txn, $dbi,
 		       MDB-val.new-from-str($key), MDB-val.new-from-buf($val),
@@ -314,7 +316,7 @@ our class Env {
 	    ) -> $code { X::LMDB::LowLevel.new(:$code, :what<put>).fail }
 	    $val;
 	}
-	multi method put(::?CLASS:D: Int $dbi, Str $key, Str $val) {
+	multi method put(::?CLASS:D: dbi $dbi, Str $key, Str $val) {
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
 	    if mdb_put($!txn, $dbi,
 		       MDB-val.new-from-str($key), MDB-val.new-from-str($val),
@@ -326,7 +328,7 @@ our class Env {
 	sub mdb_get(MDB_txn, uint32, MDB-val, MDB-val)
 	    returns int32 is native(LIB) { * };
 
-	multi method get(::?CLASS:D: Int $dbi, Str $key) {
+	multi method get(::?CLASS:D: dbi $dbi, Str $key) {
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
 	    my $res = MDB-val.new;
 	    if mdb_get($!txn, $dbi, MDB-val.new-from-str($key), $res) -> $code {
@@ -334,7 +336,7 @@ our class Env {
 	    }
 	    $res;
 	}
-	multi method get(::?CLASS:D: Int $dbi, Str $key, Any $val is rw) {
+	multi method get(::?CLASS:D: dbi $dbi, Str $key, Any $val is rw) {
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
 	    my $res = MDB-val.new;
 	    if mdb_get($!txn, $dbi, MDB-val.new-from-str($key), $res) -> $code {
@@ -343,7 +345,7 @@ our class Env {
 	    $val = $res;
 	}
 
-	method del(::?CLASS:D: Int $dbi, Str $key, Any $val = Nil --> True) {
+	method del(::?CLASS:D: dbi $dbi, Str $key, Any $val = Nil --> True) {
 	    sub mdb_del(MDB_txn, uint32, MDB-val, MDB-val)
 		returns int32 is native(LIB) { * };
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
@@ -355,7 +357,7 @@ our class Env {
 	    }
 	}
 
-	method stat(::?CLASS:D: Int $dbi) {
+	method stat(::?CLASS:D: dbi $dbi) {
 	    sub mdb_stat(MDB_txn, uint32, MDB-stat)
 		returns int32 is native(LIB) { * };
 
