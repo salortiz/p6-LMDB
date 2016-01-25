@@ -2,7 +2,7 @@ use v6;
 use Test;
 use File::Temp;
 
-plan 50;
+plan 64;
 
 use-ok 'LMDB';
 
@@ -70,7 +70,7 @@ use-ok 'LMDB';
     # Lowlevel open
     my $dbi = $Txn.db-open;
     ok $dbi.defined,			    "DB Opened, handler: $dbi";
-    isa-ok $dbi, Int,			    'A simple Int';
+    isa-ok $dbi, Int but LMDB::dbi,	    'A guarded Int';
 
     ok $Txn.put($dbi, 'aKey', 'aValue'),    'basic put works';
 
@@ -106,18 +106,39 @@ use-ok 'LMDB';
     $Txn = $lmdb.begin-txn;
     ok ?$Txn,				'Alive';
 
-    # Now at high level
+    # Now test the high level
     my $DB = $Txn.opened($dbi);
 
-    is $DB<aKey>, 'aValue',		'Get';
-    ok $DB<uKey>:exists,		'Exists';
-    ok $DB<uKey>:delete,		'Delete';
-    ok not $DB<uKey>:exists,		'Deleted';
+    my %H := $DB;
+    ok %H.defined,			'hash bindable';
+    isa-ok %H, LMDB::Env::DB;
 
-    # Testing direct memory access
-    is $DB<vKey>.mv_buff[9..12]
-       .map({($_ % 0x100).fmt('%x')})
+    is %H.elems, 3,			'elems';
+    is +%H, 3,				'Numeric context';
+    is Int(%H), 3,			'As Int';
+    ok %H,				'As Bool';
+
+    is %H<aKey>, 'aValue',		'Get';
+    ok %H<uKey>:exists,			'Exists';
+    ok %H<uKey>:delete,			'Delete';
+    ok not $%<uKey>:exists,		'Deleted';
+
+    # Testing direct Buf access
+    is %H<vKey>.mv_buff[9..12]
+	.map({($_ % 0x100).fmt('%x')})
        .join,	    <deadbeaf>,		'Woow!';
+
+    isa-ok %H.pairs, Seq,		'pairs returns Seq';
+    ok %H.pairs.is-lazy,		'a lazy one';
+
+    isa-ok %H.keys, Seq,		'keys returns Seq';
+    ok %H.keys.is-lazy,			'a lazy one';
+
+    isa-ok %H.values, Seq,		'values returns Seq';
+    ok %H.values.is-lazy,		'a lazy one';
+
+    isa-ok %H.kv, Seq,			'kv returns Seq';
+    ok %H.kv.is-lazy,			'a lazy one';
 
     diag 'To be continued...';
 }
