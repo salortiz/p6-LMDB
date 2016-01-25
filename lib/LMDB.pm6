@@ -366,21 +366,87 @@ our class Env {
 	    Map.new: $a.^attributes.map: { .name.substr(5) => .get_value($a) };
 	}
 
+	method cursor-open(::?CLASS:D: dbi $dbi) {
+	    Cursor.new(Txn => self, :$dbi);
+	}
+
+	class Cursor does Iterator {
+	    class MDB_cursor is repr('CPointer') is Any {
+		sub mdb_cursor_open(MDB_txn, int32, Pointer[MDB_cursor] is rw)
+		    returns int32 is native(LIB) { * };
+		method new($txn, $dbi) {
+		    my Pointer[MDB_cursor] $c .= new;
+		    if mdb_cursor_open($txn, $dbi, $c) -> $code {
+			X::LMDB::LowLevel.new(:$code, :what<Can't create>).fail;
+		    }
+		    $c.deref;
+		}
+	    }
+
+	    has Txn $!Txn;
+	    has MDB_cursor $!cursor;
+	    has int $!itermode;
+
+	    submethod BUILD(Txn :$!Txn, dbi :$dbi) {
+		$!cursor = MDB_cursor.new($!Txn!Txn::txn, $dbi);
+	    }
+
+	    # For positional args
+	    multi method new(Txn $Txn, Int $dbi) {
+		self.new(:$Txn, :$dbi);
+	    }
+
+	    method get($key is rw, $data is rw, Int $op, :$im) {
+		sub mdb_cursor_get(MDB_cursor $c, MDB-val $k, MDB-val $d, int32 $op)
+		    returns int32 is native(LIB) { * };
+		my $k = MDB-val.new-from-any($key);
+		my $d = MDB-val.new-from-any($data);
+		if mdb_cursor_get($!cursor, $k, $d, $op) -> $code {
+		    X::LMDB::LowLevel.new(:$code, :what<cursor_get>).fail;
+		}
+		$key = ~$k; $data = $d;
+		$!itermode = False unless $im;
+	    }
+
+	    # Iterator role methods
+	    method pull-one() {
+		my ($key, $data);
+		try {
+		    if ($!itermode) {
+			self.get($key, $data, MDB_FIRST);
+			$!itermode = True;
+		    } else {
+			self.get($key, $data, MDB_NEXT, :im);
+		    }
+		    CATCH {
+			if $_.code == MDB_NOTFOUND {
+			    $!itermode = False;
+			    return IterationEnd;
+			}
+			$_.fail;
+		    }
+		}
+		( $key.Str => $data );
+	    }
+	    method is-lazy	{ True };
+	    # Avoid read all the DB!
+	    method sink-all	{ $!itermode = False; IterationEnd }
+	}
     }
 
-    method begin-txn(Int :$flags, Bool :$subtxn) {
-	Txn.new(self, :$subtxn, :$flags);
-    }
-
-    # A high level class for encapsulates a Txn and a dbi
-    class DB does Associative {
-	has Txn $.Txn;
-	has Int $.dbi;
+    # A high level class that encapsulates a Txn and a dbi
+    class DB does Associative does Iterable {
+	has Txn $.Txn handles <commit abort>;
+	has dbi $.dbi;
 
 	multi method AT-KEY(::?CLASS:D: $key) {
 	    my \SELF = self;
+	    #note "Atkey";
 	    Proxy.new(
-		FETCH => method () { SELF.Txn.get(SELF.dbi, $key) },
+		FETCH => method () {
+		    (my \v = SELF.Txn.get(SELF.dbi, $key)).defined;
+		    v;
+		},
 		STORE => method ($val) { SELF.Txn.put(SELF.dbi, $key, $val) }
 	    )
 	}
@@ -393,6 +459,36 @@ our class Env {
 	    $!Txn.del($!dbi, $key)
 	}
 
+	method elems(::?CLASS:D:)   { $!Txn.stat($!dbi)<entries> }
+	method Int(::?CLASS:D:)	    { self.elems }
+	method Numeric(::?CLASS:D:) { self.elems }
+	method Bool(::?CLASS:D:)    { self.elems > 0 }
+
+	method pairs(::?CLASS:D:) {
+	    Seq.new($!Txn.cursor-open($!dbi));
+	}
+
+	method keys(::?CLASS:D:)    { self.pairs.map: { .key } }
+	method values(::?CLASS:D:)  { self.pairs.map: { .value } }
+	method kv(::?CLASS:D:)	    { self.pairs.map: { |(.key, .value) } }
+
+	method iterator(::?CLASS:D:) { self.pairs.iterator; }
+
+	method open(::?CLASS:U:
+	    Str :$path!,
+	    Str :$name,
+	    Int :$flags = 0,
+	    Bool :$create,
+	    Bool :$ro
+	) {
+	    $flags |= MDB_RDONLY if $ro;
+	    my $Txn = Env.new(:$path, :$flags)
+		.begin-txn(
+		    flags => $flags & MDB_RDONLY ?? MDB_RDONLY !! 0
+		);
+	    $Txn.open(:$name, :$flags, :$create);
+	}
     }
 }
 
+constant DB = Env::DB;
