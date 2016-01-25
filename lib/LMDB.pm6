@@ -101,6 +101,13 @@ my class MDB-val is repr('CStruct') {
     method new-from-str(Str $str) {
 	self.new-from-buf($str.encode('utf8'));
     }
+    method new-from-any(Any $any) {
+	given $any {
+	    when Mu  { ::?CLASS.new }
+	    when Buf { ::?CLASS.new-from-buf($any); }
+	    default  { ::?CLASS.new-from-str(~$any); }
+	}
+    }
     method Blob() {
 	Blob.new($!mv_buff[0 .. ($!mv_size-1)]);
     }
@@ -150,7 +157,6 @@ package GLOBAL::X::LMDB {
     }
 }
 
-
 my sub mdb_version(Pointer[int32] is rw, Pointer[int32] is rw, Pointer[int32] is rw)
     returns Str is native(LIB) { ... };
 
@@ -166,26 +172,36 @@ our sub version() {
 our role dbi { }; # Used as a guard
 
 our class Env {
-    class MDB_env is repr('CPointer') {
-	sub mdb_env_create(Pointer[Pointer] is rw)
+    class MDB_env is repr('CPointer') is Any {
+	sub mdb_env_create(Pointer[MDB_env] is rw)
 	    returns int32 is native(LIB) { * };
 	method new() {
-	    my Pointer[Pointer] $p .= new;
-	    if mdb_env_create($p) -> $code {
+	    if mdb_env_create(my Pointer[MDB_env] $p .= new) -> $code {
 		X::LMDB::LowLevel.new(:$code, :what<Can't create>).fail;
 	    }
-	    nativecast(MDB_env, $p.deref);
+	    $p.deref
 	}
     }
 
     sub mdb_env_close(MDB_env) is native(LIB) { };
 
-    has MDB_env $.env;
-
     our class Txn { ... };
+    trusts Txn;
+
+    has MDB_env $!env;
+    method !env { $!env };
+
     has Txn @.txns;
 
-    submethod BUILD(:$!env, :$path, :$size, :$maxdbs, :$maxreaders, :$flags) {
+    our class DB { ... };
+
+    submethod BUILD(
+	Str :$path,
+	Int :$size = 1024 * 1024,
+	Int :$maxdbs,
+	Int :$maxreaders,
+	Int :$flags
+    ) {
 	sub mdb_env_set_mapsize(MDB_env, size_t)
 	    returns int32 is native(LIB) { };
 	sub mdb_env_set_maxreaders(MDB_env, uint32)
@@ -195,6 +211,7 @@ our class Env {
 	sub mdb_env_open(MDB_env, Str , uint32, int32)
 	    returns int32 is native(LIB) { };
 
+	$!env = MDB_env.new;
 	mdb_env_set_mapsize($!env, $size);
 	mdb_env_set_maxreaders($!env, $maxreaders) if $maxreaders;
 	mdb_env_set_maxdbs($!env, $maxdbs) if $maxdbs;
@@ -204,12 +221,8 @@ our class Env {
 	self;
     }
 
-    method new(
-	Str $path,
-	Int :$size = 1024 * 1024,
-	Int :$maxdbs, Int :$maxreaders, Int :$flags
-    ) {
-	self.bless(env => MDB_env.new, :$path, :$size, :$maxdbs, :$maxreaders, :$flags);
+    multi method new(Str $path, |args) {
+	self.new(:$path, |args);
     }
 
     method stat(Env:D:) {
@@ -233,34 +246,34 @@ our class Env {
 	$p.deref;
     }
 
-    our class DB { ... };
+    method begin-txn(Int :$flags = 0) {
+	Txn.new(Env => self, :$flags);
+    }
 
     our class Txn {
-	 class MDB_txn is repr('CPointer') {
-	    sub mdb_txn_begin(MDB_env, Pointer, uint64, Pointer[Pointer] is rw)
+	 class MDB_txn is repr('CPointer') is Any {
+	    sub mdb_txn_begin(MDB_env, MDB_txn, uint64, Pointer[MDB_txn] is rw)
 		returns int32 is native(LIB) { * };
-	    method new($env, Pointer $parent, $flags) {
-		my Pointer[Pointer] $p .= new;
+	    method new($env, MDB_txn $parent, $flags) {
+		my Pointer[MDB_txn] $p .= new;
 		if mdb_txn_begin($env, $parent, $flags, $p) -> $code {
 		    X::LMDB::LowLevel.new(:$code, :what<Can't create>).fail;
 		}
-		nativecast(MDB_txn, $p.deref);
+		$p.deref;
 	    }
 	}
 
 	has Env $!Env;
 	has MDB_txn $!txn;
+	method !txn { $!txn };
+	class Cursor { ... };
+	trusts Cursor;
 
 	multi method Bool(::?CLASS:D:) { $!txn.defined };  # Still alive?
 
-	submethod BUILD(:$!Env, :$!txn) { }
-	method new(
-	    Env $Env,
-	    Bool :$subtxn,
-	    Int :$flags
-	) {
-	    my Pointer $parent;
-	    self.bless(Env => $Env, txn => MDB_txn.new($Env.env, $parent, $flags || 0));
+	submethod BUILD(:$!Env, Int :$flags = 0) {
+	    my MDB_txn $parent;
+	    $!txn = MDB_txn.new($!Env!Env::env, $parent, $flags);
 	}
 
 	method commit(::?CLASS:D: --> True) {
@@ -284,6 +297,7 @@ our class Env {
 	    }
 	    $!txn = Nil;
 	}
+
 
 	method db-open(Str :$name, Int :$flags) {
 	    sub mdb_dbi_open(MDB_txn, Str is encoded('utf8'), uint64, Pointer[int32] is rw)
@@ -349,9 +363,7 @@ our class Env {
 	    sub mdb_del(MDB_txn, uint32, MDB-val, MDB-val)
 		returns int32 is native(LIB) { * };
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
-	    my $match = $val.defined ?? (
-		$val ~~ Buf ?? MDB-val.new-from-buf($val) !! MDB-val.new-from-str(~$val)
-	    ) !! MDB-val.new;
+	    my $match = MDB-val.new-from-any($val);
 	    if mdb_del($!txn, $dbi, MDB-val.new-from-str($key), $match) -> $code {
 		X::LMDB::LowLevel.new(:$code, :what<del>).fail;
 	    }
