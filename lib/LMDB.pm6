@@ -33,6 +33,60 @@ my enum DbFlag is export(:flags) (
     MDB_CREATE	    => 0x40000
 );
 
+my enum cursor-op is export (
+    'MDB_FIRST',	  # Position at first key/data item
+    'MDB_FIRST_DUP',      # Position at first data item of current key.
+			  #    Only for #MDB_DUPSORT
+    'MDB_GET_BOTH',       # Position at key/data pair. Only for #MDB_DUPSORT
+    'MDB_GET_BOTH_RANGE', # position at key, nearest data. Only for #MDB_DUPSORT
+    'MDB_GET_CURRENT',    # Return key/data at current cursor position
+    'MDB_GET_MULTIPLE',   # Return key and up to a page of duplicate data items
+                          # from current cursor position. Move cursor to prepare
+			  #    for #MDB_NEXT_MULTIPLE. Only for #MDB_DUPFIXED
+    'MDB_LAST',           # Position at last key/data item
+    'MDB_LAST_DUP',       # Position at last data item of current key.
+                          #    Only for #MDB_DUPSORT
+    'MDB_NEXT',           # Position at next data item
+    'MDB_NEXT_DUP',       # Position at next data item of current key.
+			  #    Only for #MDB_DUPSORT
+    'MDB_NEXT_MULTIPLE',  # Return key and up to a page of duplicate data items
+			  #    from next cursor position. Move cursor to prepare
+			  #    for #MDB_NEXT_MULTIPLE. Only for #MDB_DUPFIXED
+    'MDB_NEXT_NODUP',     # Position at first data item of next key
+    'MDB_PREV',           # Position at previous data item
+    'MDB_PREV_DUP',       # Position at previous data item of current key.
+			  #     Only for #MDB_DUPSORT
+    'MDB_PREV_NODUP',     # Position at last data item of previous key
+    'MDB_SET',            # Position at specified key
+    'MDB_SET_KEY',        # Position at specified key, return key + data
+    'MDB_SET_RANGE'       # Position at first key greater than or equal to
+                          # specified key.
+);
+
+my enum errors is export (
+    MDB_SUCCESS		=> 0,
+    MDB_KEYEXIST	=> -30799,
+    MDB_NOTFOUND	=> -30798,
+    MDB_PAGE_NOTFOUND	=> -30797,
+    MDB_CORRUPTED	=> -30796,
+    MDB_PANIC		=> -30795,
+    MDB_VERSION_MISMATCH => -30794,
+    MDB_INVALID		=> -30793,
+    MDB_MAP_FULL	=> -30792,
+    MDB_DBS_FULL	=> -30791,
+    MDB_READERS_FULL	=> -30790,
+    MDB_TLS_FULL	=> -30789,
+    MDB_TXN_FULL	=> -30788,
+    MDB_CURSOR_FULL	=> -30787,
+    MDB_PAGE_FULL	=> -30786,
+    MDB_MAP_RESIZED	=> -30785,
+    MDB_INCOMPATIBLE	=> -30784,
+    MDB_BAD_RSLOT	=> -30783,
+    MDB_BAD_TXN		=> -30782,
+    MDB_BAD_VALSIZE	=> -30781,
+    MDB_BAD_DBI		=> -30780,
+);
+
 my class MDB-val is repr('CStruct') {
     has size_t		$.mv_size;
     has CArray[uint8]	$.mv_buff;
