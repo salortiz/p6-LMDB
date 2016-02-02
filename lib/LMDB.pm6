@@ -134,7 +134,6 @@ my class MDB-envinfo is repr('CStruct') {
     has uint32  $.me_numreaders;
 }
 
-
 my sub mdb_strerror(int32) returns Str is native(LIB) { * };
 
 package GLOBAL::X::LMDB {
@@ -153,6 +152,14 @@ package GLOBAL::X::LMDB {
 	    my $msg;
 	    $msg ~= "{$!what}: ";
 	    $msg ~= mdb_strerror($!code);
+	}
+    }
+
+    our class MutuallyExcludedArgs is Exception is export {
+	has Str @.args;
+	has $.meth;
+	method message() {
+	    "You must provide one and only one of @.args[] to $.meth";
 	}
     }
 }
@@ -489,18 +496,22 @@ our class Env {
 	method iterator(::?CLASS:D:) { self.pairs.iterator; }
 
 	method open(::?CLASS:U:
-	    Str :$path!,
+	    Env :$Env,
+	    Str :$path,
 	    Str :$name,
-	    Int :$flags = 0,
+	    Int :$flags is copy,
 	    Bool :$create,
 	    Bool :$ro
 	) {
-	    $flags |= MDB_RDONLY if $ro;
-	    my $Txn = Env.new(:$path, :$flags)
+	    X::LMDB::MutuallyExcludedArgs.new(:args<$Env $path>, :meth<open>).throw
+		unless one($Env, $path);
+	    $flags +|= MDB_RDONLY if $ro;
+	    my $Txn = ($Env || Env.new(:$path, :$flags))
 		.begin-txn(
 		    flags => $flags & MDB_RDONLY ?? MDB_RDONLY !! 0
 		);
-	    $Txn.open(:$name, :$flags, :$create);
+	    $flags +| MDB_CREATE if $create;
+	    $Txn.open(:$name, :$flags);
 	}
     }
 }
