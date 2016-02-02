@@ -278,6 +278,9 @@ our class Env {
 
 	multi method Bool(::?CLASS:D:) { $!txn.defined };  # Still alive?
 
+	submethod DESTROY() {
+	    note "Destroy active Txn!" if $!txn;
+	}
 	submethod BUILD(:$!Env, Int :$flags = 0) {
 	    my MDB_txn $parent;
 	    $!txn = MDB_txn.new($!Env!Env::env, $parent, $flags);
@@ -454,6 +457,7 @@ our class Env {
 	    method sink-all	{ $!itermode = False; IterationEnd }
 	}
     }
+    Metamodel::Primitives.configure_destroy(Txn, 1);
 
     # A high level class that encapsulates a Txn and a dbi
     class DB does Associative does Iterable {
