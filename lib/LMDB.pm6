@@ -407,8 +407,9 @@ our class Env {
 	    $rp.Int but dbi;
 	}
 
-	method open(Str :$name, Int :$flags) {
+	method open(Str :$name, Int :$flags, :$comparer) {
 	    my $dbi = self.db-open(:$name, :$flags) orelse $dbi.fail;
+	    self.set-compare($dbi, $comparer) if $comparer;
 	    DB.new(Txn => self, :$dbi);
 	}
 
@@ -475,6 +476,20 @@ our class Env {
 		X::LMDB::LowLevel.new(:$code, :what<stat>).fail;
 	    }
 	    Map.new: $a.^attributes.map: { .name.substr(5) => .get_value($a) };
+	}
+
+	method set-compare(::?CLASS:D: dbi $dbi, &cb:(Str, Str) --> True) {
+	    sub mdb_set_compare(MDB_txn, int32, &cb (MDB-val, MDB-val -->int32))
+		returns int32 is native(LIB) { * };
+	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
+	    #'&cb needs 2 arguments'.fail unless &cb.arity + &vb.count == 2;
+	    my &wrapper = -> MDB-val $a, MDB-val $b --> int32 {
+		my int32 $res = &cb($a.Str, $b.Str);
+		$res;
+	    };
+	    if mdb_set_compare($!txn, $dbi, &wrapper) -> $code {
+		X::LMDB::LowLevel.new(:$code, :what<set-compare>).fail;
+	    }
 	}
 
 	method cursor-open(::?CLASS:D: dbi $dbi) {
@@ -591,15 +606,21 @@ our class Env {
 	    Str :$name,
 	    Int :$flags is copy = 0,
 	    Bool :$create,
-	    Bool :$ro
+	    Bool :$ro,
+	    :$comparer
 	) {
 	    X::LMDB::MutuallyExcludedArgs.new(:args<$Env $path>, :method<open>).throw
 		unless one($Env, $path);
 	    $flags +|= MDB_RDONLY if $ro;
 	    my $Txn = ($Env || Env.new(:$path, :$flags))
-		.begin-txn(:flags($flags +& MDB_RDONLY));
-	    $flags +| MDB_CREATE if $create;
-	    $Txn.open(:$name, :$flags);
+		.txn(:flags($flags +& MDB_RDONLY));
+	    without $Txn { .fail };
+	    $flags +|= MDB_CREATE if $create;
+	    $Txn.open(:$name, :$flags, :$comparer);
+	}
+
+	method stat(::?CLASS:D:) {
+	    $!Txn.stat($!dbi);
 	}
     }
 }
