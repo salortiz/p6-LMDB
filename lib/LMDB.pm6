@@ -331,6 +331,10 @@ our class Env {
 		}
 		$p.deref;
 	    }
+	    #method track {
+	    #	use nqp;
+	    #	" txn: " ~ nqp::p6box_i(nqp::unbox_i(nqp::decont(self))).base(16);
+	    #}
 	}
 
 	has Env $.Env;
@@ -339,18 +343,22 @@ our class Env {
 	method !txn is rw { $!txn };
 	class Cursor { ... };
 	trusts Cursor;
+	#method track {
+	#    "Txn " ~ self.WHERE.base(16) ~ $!txn.track;
+	#}
 
 	multi method Bool(::?CLASS:D:) { $!txn.defined };  # Still alive?
 
 	submethod DESTROY() {
 	    note "Destroy active Txn!" if $!txn;
 	}
-	submethod BUILD(:$!Env, Int :$flags = 0) {
+	submethod BUILD(:$!Env, Int :$flags = 0 --> Nil) {
 	    my MDB_txn $parent = do {
-		with $!Env!Env::gettxnl[0] { return $_!Txn::txn }
-		Nil;
+		with $!Env!Env::gettxnl[0] { $_!Txn::txn }
+		else { Nil; }
 	    };
 	    $!txn = MDB_txn.new($!Env!Env::env, $parent, $flags);
+	    without $!txn { $_.throw };
 	    $!tid = $!Env!Env::addtxn(self);
 	}
 	submethod !prune(::?CLASS:D:) {
