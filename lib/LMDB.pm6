@@ -327,7 +327,7 @@ our class Env {
 	    method new($env, MDB_txn $parent, $flags) {
 		my Pointer[MDB_txn] $p .= new;
 		if mdb_txn_begin($env, $parent, $flags, $p) -> $code {
-		    X::LMDB::LowLevel.new(:$code, :what<Can't create>).fail;
+		    X::LMDB::LowLevel.new(:$code, :what<Txn create>).fail;
 		}
 		$p.deref;
 	    }
