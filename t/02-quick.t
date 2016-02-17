@@ -28,7 +28,7 @@ my $Env;
 	ok .key.lc eq .value,		"Iterating over $_"
     };
 
-    $Env = %DB.Txn.Env;
+    $Env = %DB.Env;
     ok $Env,				'Env retrieved';
 
     lives-ok { %DB.commit },		'Commited'

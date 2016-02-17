@@ -2,7 +2,7 @@ use v6;
 use Test;
 use File::Temp;
 
-plan 71;
+plan 75;
 
 use-ok 'LMDB';
 
@@ -34,6 +34,7 @@ use-ok 'LMDB';
     is $dir, $lmdb.get-path,		'Can get-path';
     ok "$dir/data.mdb".IO ~~ :e,	'Data file created';
     ok "$dir/lock.mdb".IO ~~ :e,	'Lock file created';
+    is $lmdb.get-flags, 0,		'Without flags';
 
     # Basic environment info from native mdb_env_info
     isa-ok (my $info = $lmdb.info), Map, 'Info is-a Map';
@@ -50,9 +51,12 @@ use-ok 'LMDB';
     ok not %info<mapaddr>.defined,	'Not mapfixed';
 
     # Need a Transaction
-    my $Txn = $lmdb.begin-txn;
+    my $Txn = $lmdb.txn;
     ok ?$Txn,				'Alive Txn';
     isa-ok $Txn, LMDB::Env::Txn;
+    is $lmdb._deep, 1,			'Right deep';
+    ok $Txn === $lmdb.current-txn,	'Current one';
+    ok $Txn === $lmdb.txn,		'The same';
 
     # This is a simple db, only one unamed db allowed
     # so test some Failure handling
@@ -60,7 +64,7 @@ use-ok 'LMDB';
 	my $dbi = $Txn.db-open(name => 'NAMED');
 	ok not $dbi.defined,		    'Should fail';
 	is $dbi.WHAT, Failure,		    'Failure reported';
-	ok $dbi.Int ~~ Int,		    'Now handled';
+	ok $dbi.Int ~~ Int,		    'Now handled'; #Hack till F.handled
 	my $e = $dbi.exception;
 	ok $e ~~ X::LMDB::LowLevel,	    'right exception type';
 	like $e.message,  /MDB_DBS_FULL/,   'Expected';
