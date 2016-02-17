@@ -162,15 +162,16 @@ package GLOBAL::X::LMDB {
     }
 }
 
-my sub mdb_version(Pointer[int32] is rw, Pointer[int32] is rw, Pointer[int32] is rw)
+my sub mdb_version(int32 is rw, int32 is rw, int32 is rw)
     returns Str is native(LIB) { ... };
 
 our sub version() {
     my $res = mdb_version(
-	my Pointer[int32] $mayor .= new,
-	my Pointer[int32] $minor .= new,
-	my Pointer[int32] $patch .= new
+	my int32 $mayor,
+	my int32 $minor,
+	my int32 $patch
     );
+    #dd "Ver: $mayor $minor $patch";
     $res;
 }
 
