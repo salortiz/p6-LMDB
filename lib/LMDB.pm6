@@ -146,10 +146,10 @@ package GLOBAL::X::LMDB {
     our class LowLevel is Exception is export {
 #   For errors reported by the lowlevel C library
 	has Int $.code;
-	has Str $.what;
+	has $.what;
 	submethod BUILD(:$!code, :$!what) { };
 	method message() {
-	    "{$!what}: &mdb_strerror($!code)"
+	    "{~$!what}: &mdb_strerror($!code)"
 	}
     }
 
