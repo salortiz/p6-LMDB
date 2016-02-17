@@ -288,7 +288,7 @@ our class Env {
     }
 
     method get-flags(Env:D:) {
-	sub mdb_env_get_flags(MDB_env, Pointer[int32] is rw)
+	sub mdb_env_get_flags(MDB_env, uint32 is rw)
 	    returns int32 is native(LIB) { * };
 	if mdb_env_get_flags($!env, my uint32 $flags) -> $code {
 	    X::LMDB::LowLevel.new(:$code, :what<get-flags>).fail;
@@ -374,12 +374,12 @@ our class Env {
 
 
 	method db-open(Str :$name, Int :$flags = 0) {
-	    sub mdb_dbi_open(MDB_txn, Str is encoded('utf8'), uint64, Pointer[int32] is rw)
+	    sub mdb_dbi_open(MDB_txn, Str is encoded('utf8'), uint32, int32 is rw)
 		returns int32 is native(LIB) { * };
 	    constant DbFlagMask = [+|] DbFlag::.values;
 
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
-	    my Pointer[int32] $rp .= new;
+	    my int32 $rp;
 	    if mdb_dbi_open($!txn, $name, $flags +& DbFlagMask, $rp) -> $code {
 		X::LMDB::LowLevel.new(:$code, :what<db-open>).fail;
 	    }
