@@ -155,9 +155,9 @@ package GLOBAL::X::LMDB {
 
     our class MutuallyExcludedArgs is Exception is export {
 	has Str @.args;
-	has $.meth;
+	has $.method;
 	method message() {
-	    "You must provide one and only one of @.args[] to $.meth";
+	    "You must provide one and only one of @.args[] to method $.method";
 	}
     }
 }
