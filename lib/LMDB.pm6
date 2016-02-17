@@ -299,8 +299,8 @@ our class Env {
     method get-path(Env:D:) {
 	sub mdb_env_get_path(MDB_env, Pointer[Str] is rw)
 	    returns int32 is native(LIB) { * };
-	mdb_env_get_path($!env, my Pointer[Str] $p .= new);
-	$p.deref;
+	mdb_env_get_path($!env, my Pointer[Str] $path .= new);
+	$path.deref
     }
 
     method begin-txn(Int :$flags = 0) {
