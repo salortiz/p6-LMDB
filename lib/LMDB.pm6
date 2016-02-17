@@ -184,7 +184,7 @@ our class Env {
 	method new() {
 	    if mdb_env_create(my Pointer[MDB_env] $p .= new) -> $code {
 		mdb_env_close($p.deref);
-		X::LMDB::LowLevel.new(:$code, :what<Can't create>).fail;
+		X::LMDB::LowLevel.new(:$code, :what<Env create>).fail;
 	    }
 	    $p.deref
 	}
@@ -237,7 +237,7 @@ our class Env {
 	mdb_env_set_maxdbs($!env, $maxdbs) if $maxdbs;
 	if mdb_env_open($!env, $path, $flags +& EnvFlagMask, $mode) -> $code {
 	    mdb_env_close($!env);
-	    X::LMDB::LowLevel.new(:$code, what => "Can't open $path").fail;
+	    X::LMDB::LowLevel.new(:$code, what => "Env open '$path'").fail;
 	}
 	self;
     }
@@ -252,7 +252,7 @@ our class Env {
 	    returns int32 is native(LIB) { * };
 	my $flag = +$compact; # MDB_CP_COMPACT == 1;
 	if mdb_env_copy2($!env, $path, $flag) -> $code {
-	    X::LMDB::LowLevel.new(:$code, :what<In copy to path>).fail;
+	    X::LMDB::LowLevel.new(:$code, :what<copy to path>).fail;
 	}
     }
     multi method copy(Env:D: IO::Handle:D :$io, Bool :$compact --> True) {
@@ -261,7 +261,7 @@ our class Env {
 	my $flag = +$compact; # MDB_CP_COMPACT == 1
 	# TODO: Ensure io opened
 	if mdb_env_copyfd2($!env, $io.native-descriptor, $flag) -> $code {
-	    X::LMDB::LowLevel.new(:$code, :what<In copy to fd>).fail;
+	    X::LMDB::LowLevel.new(:$code, :what<copy to fd>).fail;
 	}
     }
 
@@ -290,8 +290,10 @@ our class Env {
     method get-flags(Env:D:) {
 	sub mdb_env_get_flags(MDB_env, Pointer[int32] is rw)
 	    returns int32 is native(LIB) { * };
-	mdb_env_get_flags($!env, my Pointer[int32] $p .= new);
-	$p.deref;
+	if mdb_env_get_flags($!env, my uint32 $flags) -> $code {
+	    X::LMDB::LowLevel.new(:$code, :what<get-flags>).fail;
+	}
+	$flags;
     }
 
     method get-path(Env:D:) {
@@ -465,7 +467,7 @@ our class Env {
 		method new($txn, $dbi) {
 		    my Pointer[MDB_cursor] $c .= new;
 		    if mdb_cursor_open($txn, $dbi, $c) -> $code {
-			X::LMDB::LowLevel.new(:$code, :what<Can't create>).fail;
+			X::LMDB::LowLevel.new(:$code, :what<Cursor create>).fail;
 		    }
 		    $c.deref;
 		}
@@ -490,7 +492,7 @@ our class Env {
 		my $k = MDB-val.new-from-any($key);
 		my $d = MDB-val.new-from-any($data);
 		if mdb_cursor_get($!cursor, $k, $d, $op) -> $code {
-		    X::LMDB::LowLevel.new(:$code, :what<cursor_get>).fail;
+		    X::LMDB::LowLevel.new(:$code, :what<cursor-get>).fail;
 		}
 		$key = ~$k; $data = $d;
 		$!itermode = False unless $im;
@@ -570,7 +572,7 @@ our class Env {
 	    Bool :$create,
 	    Bool :$ro
 	) {
-	    X::LMDB::MutuallyExcludedArgs.new(:args<$Env $path>, :meth<open>).throw
+	    X::LMDB::MutuallyExcludedArgs.new(:args<$Env $path>, :method<open>).throw
 		unless one($Env, $path);
 	    $flags +|= MDB_RDONLY if $ro;
 	    my $Txn = ($Env || Env.new(:$path, :$flags))
