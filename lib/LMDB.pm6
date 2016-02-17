@@ -563,12 +563,11 @@ our class Env {
 
     # A high level class that encapsulates a Txn and a dbi
     class DB does Associative does Iterable {
-	has Txn $.Txn handles <commit abort>;
+	has Txn $.Txn handles <commit abort Env>;
 	has dbi $.dbi;
 
 	multi method AT-KEY(::?CLASS:D: $key) {
 	    my \SELF = self;
-	    #note "Atkey";
 	    Proxy.new(
 		FETCH => method () {
 		    SELF.Txn.get(SELF.dbi, $key) || Nil;
