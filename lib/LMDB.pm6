@@ -307,6 +307,19 @@ our class Env {
 	Txn.new(Env => self, :$flags);
     }
 
+    method current-txn(Env:D:) {
+	my \txl = self!gettxnl;
+	(my \els = txl.elems) ?? txl[els-1] !! Nil;
+    }
+
+    method txn(Env:D: Int:$flags = 0) {
+	self.current-txn || Txn.new(Env => self, :$flags);
+    }
+
+    method _deep {
+	self!gettxnl.elems;
+    }
+
     our class Txn {
 	 class MDB_txn is repr('CPointer') is Any {
 	    sub mdb_txn_begin(MDB_env, MDB_txn, uint64, Pointer[MDB_txn] is rw)
