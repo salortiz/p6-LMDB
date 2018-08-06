@@ -7,6 +7,7 @@ plan 75;
 use-ok 'LMDB';
 
 {
+    use LMDB;
     my $a = LMDB::version;
     like $a, /^LMDB/, "Version $a";
 }
