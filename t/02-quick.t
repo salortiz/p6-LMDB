@@ -19,7 +19,7 @@ my $Env;
 
     %DB<A B C D E> = <a b c d e>;
 
-    is %DB.kv.flat, <A a B b C c D d E e>,     'All in';
+    is-deeply %DB.kv».Str, <A a B b C c D d E e>,     'All in';
 
     ok all(%DB<A B C D E>:exists),	'exists works';
     ok all(%DB<F G>:!exists),		'!exists works';

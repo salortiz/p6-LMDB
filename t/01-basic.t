@@ -146,7 +146,7 @@ use-ok 'LMDB';
 
     isa-ok %H.keys, Seq,		'keys returns Seq';
     ok %H.keys.is-lazy,			'a lazy one';
-    is %H.keys.flat, <aKey vKey>,	'Expected ones';
+    is-deeply %H.keys.eager.sort, <aKey vKey>,	'Expected ones';
 
     my $v = %H.values;
     isa-ok $v, Seq,			'values returns Seq';
