@@ -2,7 +2,7 @@ use v6;
 
 use NativeCall :ALL;
 
-unit module LMDB:ver<0.0.1>;
+unit module LMDB:ver<0.0.2>;
 
 sub MyLibName {
     %*ENV<LIBLMDB> || guess_library_name(('lmdb',v0.0.0));
@@ -231,15 +231,17 @@ our class Env {
 	    returns int32 is native(LIB) { };
 	constant EnvFlagMask = [+|] EnvFlag::.values;
 
-	$!env = MDB_env.new;
-	mdb_env_set_mapsize($!env, $size);
-	mdb_env_set_maxreaders($!env, $maxreaders) if $maxreaders;
-	mdb_env_set_maxdbs($!env, $maxdbs) if $maxdbs;
-	if mdb_env_open($!env, $path, $flags +& EnvFlagMask, $mode) -> $code {
-	    mdb_env_close($!env);
-	    X::LMDB::LowLevel.new(:$code, what => "Env open '$path'").fail;
+	with MDB_env.new -> $!env {
+	    mdb_env_set_mapsize($!env, $size);
+	    mdb_env_set_maxreaders($!env, $maxreaders) if $maxreaders;
+	    mdb_env_set_maxdbs($!env, $maxdbs) if $maxdbs;
+	    if mdb_env_open($!env, $path, $flags +& EnvFlagMask, $mode) -> $code {
+		mdb_env_close($!env);
+		X::LMDB::LowLevel.new(:$code, what => "Env open '$path'").fail;
+	    }
+	} else {
+	    .fail;
 	}
-	self;
     }
 
     multi method new(Str $path, Int :$flags is copy = 0;; :$ro, |args) {
