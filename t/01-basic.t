@@ -2,14 +2,14 @@ use v6;
 use Test;
 use File::Temp;
 
-plan 75;
+plan 77;
 
 use-ok 'LMDB';
 
-{
-    my $a = LMDB::version;
-    like $a, /^LMDB/, "Version $a";
-}
+#{
+#    my $a = LMDB::version;
+#    like $a, /^LMDB/, "Version $a";
+#}
 
 {
     use LMDB :flags;
@@ -145,7 +145,7 @@ use-ok 'LMDB';
 
     isa-ok %H.keys, Seq,		'keys returns Seq';
     ok %H.keys.is-lazy,			'a lazy one';
-    is %H.keys.flat, <aKey vKey>,	'Expected ones';
+    is %H.keys.eager, <aKey vKey>,	'Expected ones';
 
     my $v = %H.values;
     isa-ok $v, Seq,			'values returns Seq';
@@ -154,6 +154,12 @@ use-ok 'LMDB';
 
     isa-ok %H.kv, Seq,			'kv returns Seq';
     ok %H.kv.is-lazy,			'a lazy one';
+
+    is %H<foo>, Nil,			'Nil';
+    lives-ok {
+	%H<foo> = 'bar';
+    },					'Can add';
+    is %H<foo>, 'bar',			'Added';
 
     diag 'To be continued...';
 }

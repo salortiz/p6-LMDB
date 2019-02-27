@@ -31,7 +31,7 @@ my $Env = LMDB::Env.new($dir):5maxdbs;
     },						'SOME DB Created';
     is %DB.dbi, 2,				'Not MAIN';
     %DB<EV DW CX BY AZ> = <5 4 3 2 1>;
-    is %DB.kv.flat, <AZ 1 BY 2 CX 3 DW 4 EV 5>,	'The ordered data';
+    is %DB.kv.eager,<AZ 1 BY 2 CX 3 DW 4 EV 5>, 'The ordered data';
     ok all(%DB<az by cx dw ev>:exists),		'But is case insentive';
     is %DB<cx>, 3,				'Value right';
     is %DB.elems, 5,				'Count right';
@@ -44,7 +44,7 @@ my $Env = LMDB::Env.new($dir):5maxdbs;
 
     is %DBR.dbi, 3,				'A new one';
     %DBR<AZ BY CX DW EV> = <1 2 3 4 5>;
-    is %DBR.kv.flat, <EV 5 DW 4 CX 3 BY 2 AZ 1>,'Reversed order data';
+    is %DBR.kv.eager,<EV 5 DW 4 CX 3 BY 2 AZ 1>,'Reversed order data';
     is %DBR.elems, 5,				'Count right';
 
     lives-ok {
