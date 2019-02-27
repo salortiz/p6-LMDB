@@ -566,7 +566,7 @@ our class Env {
 	has Txn $.Txn handles <commit abort Env>;
 	has dbi $.dbi;
 
-	multi method AT-KEY(::?CLASS:D: $key) {
+	multi method AT-KEY(::?CLASS:D: $key) is raw {
 	    my \SELF = self;
 	    Proxy.new(
 		FETCH => method () {
