@@ -18,10 +18,7 @@
     "license" : "Artistic-2.0",
     "support" : {
 	"email" : "sog@msg.com.mx",
-	"source" : [
-	    "git://github.com/salortiz/p6-LMDB.git",
-	    "https://github.com/salortiz/p6-LMDB.git"
-	]
+	"source" : "https://github.com/salortiz/p6-LMDB.git"
     },
     "tags" : [
 	"kv", "liblmdb"
