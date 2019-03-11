@@ -1,6 +1,5 @@
 language: perl6
 sudo: true
-dist: xenial
 before_install:
     - sudo apt-get -qq update
     - sudo apt-get install -qq -y liblmdb-dev
