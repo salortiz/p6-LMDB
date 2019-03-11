@@ -2,7 +2,7 @@ use v6;
 
 use NativeCall :ALL;
 
-unit module LMDB:ver<0.0.2>;
+unit module LMDB:ver<0.0.3>;
 
 sub MyLibName {
     %*ENV<LIBLMDB> || guess_library_name(('lmdb',v0.0.0));
@@ -20,8 +20,11 @@ my enum  EnvFlag is export(:flags) (
     MDB_MAPASYNC    => 0x100000,
     MDB_NOTLS	    => 0x200000,
     MDB_NOLOCK	    => 0x400000,
-    MDB_NORDAHEAD   => 0x800000
+    MDB_NORDAHEAD   => 0x800000,
+    MDB_NOMEMINIT   => 0x1000000
 );
+
+
 
 my enum DbFlag is export(:flags) (
     MDB_REVERSEKEY  => 0x02,
@@ -178,6 +181,7 @@ our sub version() {
 our role dbi { }; # Used as a guard
 
 our class Env {
+	
     class MDB_env is repr('CPointer') is Any {
 	sub mdb_env_create(Pointer[MDB_env] is rw)
 	    returns int32 is native(LIB) { * };
@@ -212,6 +216,16 @@ our class Env {
     }
 
     our class DB { ... };
+    sub mdb_env_set_mapsize(MDB_env, size_t)
+	returns int32 is native(LIB) { };
+    sub mdb_env_set_maxreaders(MDB_env, uint32)
+	returns int32 is native(LIB) { };
+    sub mdb_env_set_maxdbs(MDB_env, uint32)
+	returns int32 is native(LIB) { };
+    sub mdb_env_open(MDB_env, Str , uint32, int32)
+	returns int32 is native(LIB) { };
+    constant EnvFlagMask = [+|] EnvFlag::.values;
+
 
     submethod BUILD(
 	Str :$path,
@@ -221,16 +235,6 @@ our class Env {
 	Int :$flags = 0,
 	int :$mode = 0o777
     ) {
-	sub mdb_env_set_mapsize(MDB_env, size_t)
-	    returns int32 is native(LIB) { };
-	sub mdb_env_set_maxreaders(MDB_env, uint32)
-	    returns int32 is native(LIB) { };
-	sub mdb_env_set_maxdbs(MDB_env, uint32)
-	    returns int32 is native(LIB) { };
-	sub mdb_env_open(MDB_env, Str , uint32, int32)
-	    returns int32 is native(LIB) { };
-	constant EnvFlagMask = [+|] EnvFlag::.values;
-
 	with MDB_env.new -> $!env {
 	    mdb_env_set_mapsize($!env, $size);
 	    mdb_env_set_maxreaders($!env, $maxreaders) if $maxreaders;
@@ -249,17 +253,17 @@ our class Env {
 	self.new(:$path, :$flags, |args);
     }
 
+    sub mdb_env_copy2(MDB_env, Str, uint32)
+	returns int32 is native(LIB) { * };
+    sub mdb_env_copyfd2(MDB_env, int32, uint32)
+	returns int32 is native(LIB) { * };
     multi method copy(Env:D: Str:D :$path!, Bool :$compact --> True) {
-	sub mdb_env_copy2(MDB_env, Str, uint32)
-	    returns int32 is native(LIB) { * };
 	my $flag = +$compact; # MDB_CP_COMPACT == 1;
 	if mdb_env_copy2($!env, $path, $flag) -> $code {
 	    X::LMDB::LowLevel.new(:$code, :what<copy to path>).fail;
 	}
     }
     multi method copy(Env:D: IO::Handle:D :$io, Bool :$compact --> True) {
-	sub mdb_env_copyfd2(MDB_env, int32, uint32)
-	    returns int32 is native(LIB) { * };
 	my $flag = +$compact; # MDB_CP_COMPACT == 1
 	# TODO: Ensure io opened
 	if mdb_env_copyfd2($!env, $io.native-descriptor, $flag) -> $code {
@@ -267,16 +271,16 @@ our class Env {
 	}
     }
 
+    sub mdb_env_stat(MDB_env, MDB-stat)
+	returns int32 is native(LIB) { * };
     method stat(Env:D:) {
-	sub mdb_env_stat(MDB_env, MDB-stat)
-	    returns int32 is native(LIB) { * };
 	mdb_env_stat($!env, my MDB-stat $a .= new);
 	Map.new: $a.^attributes.map: { .name.substr(5) => .get_value($a) };
     }
 
+    sub mdb_env_info(MDB_env, MDB-envinfo)
+	returns int32 is native(LIB) { * };
     method info(Env:D:) {
-	sub mdb_env_info(MDB_env, MDB-envinfo)
-	    returns int32 is native(LIB) { * };
 	mdb_env_info($!env, my MDB-envinfo $a .= new);
 	Map.new: $a.^attributes.map: { .name.substr(5) => .get_value($a) };
     }
@@ -289,18 +293,21 @@ our class Env {
 	$!env = Nil;
     }
 
+    sub mdb_env_get_flags(MDB_env, uint32 is rw)
+	returns int32 is native(LIB) { * };
+    constant CHANGEABLE = [+|](MDB_NOSYNC, MDB_NOMETASYNC, MDB_MAPASYNC, MDB_NOMEMINIT);
+    constant CHANGELESS = [+|](MDB_FIXEDMAP, MDB_NOSUBDIR, MDB_RDONLY, MDB_WRITEMAP, MDB_NOTLS, MDB_NOLOCK, MDB_NORDAHEAD);
+
     method get-flags(Env:D:) {
-	sub mdb_env_get_flags(MDB_env, uint32 is rw)
-	    returns int32 is native(LIB) { * };
 	if mdb_env_get_flags($!env, my uint32 $flags) -> $code {
 	    X::LMDB::LowLevel.new(:$code, :what<get-flags>).fail;
 	}
-	$flags;
+	$flags +& (CHANGEABLE +| CHANGELESS);
     }
 
+    sub mdb_env_get_path(MDB_env, Pointer[Str] is rw)
+	returns int32 is native(LIB) { * };
     method get-path(Env:D:) {
-	sub mdb_env_get_path(MDB_env, Pointer[Str] is rw)
-	    returns int32 is native(LIB) { * };
 	mdb_env_get_path($!env, my Pointer[Str] $path .= new);
 	$path.deref
     }
@@ -323,6 +330,7 @@ our class Env {
     }
 
     our class Txn {
+
 	 class MDB_txn is repr('CPointer') is Any {
 	    sub mdb_txn_begin(MDB_env, MDB_txn, uint64, Pointer[MDB_txn] is rw)
 		returns int32 is native(LIB) { * };
@@ -373,10 +381,9 @@ our class Env {
 	    $!txn = Nil;
 	}
 
+	sub mdb_txn_commit(MDB_txn)
+	    returns int32 is native(LIB) { * };
 	method commit(::?CLASS:D: --> True) {
-	    sub mdb_txn_commit(MDB_txn)
-		returns int32 is native(LIB) { * };
-
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
 	    if mdb_txn_commit($!txn) -> $code {
 		X::LMDB::LowLevel.new(:$code, :what<commit>).fail;
@@ -384,10 +391,9 @@ our class Env {
 	    self!prune;
 	}
 
+	sub mdb_txn_abort(MDB_txn)
+	    returns int32 is native(LIB) { * };
 	method abort(::?CLASS:D: --> True) {
-	    sub mdb_txn_abort(MDB_txn)
-		returns int32 is native(LIB) { * };
-
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
 	    if mdb_txn_abort($!txn) -> $code {
 		X::LMDB::LowLevel.new(:$code, :what<abort>).fail;
@@ -396,11 +402,10 @@ our class Env {
 	}
 
 
+	sub mdb_dbi_open(MDB_txn, Str is encoded('utf8'), uint32, int32 is rw)
+	    returns int32 is native(LIB) { * };
+	constant DbFlagMask = [+|] DbFlag::.values;
 	method db-open(Str :$name, Int :$flags = 0) {
-	    sub mdb_dbi_open(MDB_txn, Str is encoded('utf8'), uint32, int32 is rw)
-		returns int32 is native(LIB) { * };
-	    constant DbFlagMask = [+|] DbFlag::.values;
-
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
 	    my int32 $rp;
 	    if mdb_dbi_open($!txn, $name, $flags +& DbFlagMask, $rp) -> $code {
@@ -459,9 +464,9 @@ our class Env {
 	    $val = $res;
 	}
 
+	sub mdb_del(MDB_txn, uint32, MDB-val, MDB-val)
+	    returns int32 is native(LIB) { * };
 	method del(::?CLASS:D: dbi $dbi, Str $key, Any $val = Nil --> True) {
-	    sub mdb_del(MDB_txn, uint32, MDB-val, MDB-val)
-		returns int32 is native(LIB) { * };
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
 	    my $match = MDB-val.new-from-any($val);
 	    if mdb_del($!txn, $dbi, MDB-val.new-from-str($key), $match) -> $code {
@@ -469,10 +474,9 @@ our class Env {
 	    }
 	}
 
+	sub mdb_stat(MDB_txn, uint32, MDB-stat)
+	    returns int32 is native(LIB) { * };
 	method stat(::?CLASS:D: dbi $dbi) {
-	    sub mdb_stat(MDB_txn, uint32, MDB-stat)
-		returns int32 is native(LIB) { * };
-
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
 	    if mdb_stat($!txn, $dbi, my MDB-stat $a .= new) -> $code {
 		X::LMDB::LowLevel.new(:$code, :what<stat>).fail;
@@ -480,9 +484,9 @@ our class Env {
 	    Map.new: $a.^attributes.map: { .name.substr(5) => .get_value($a) };
 	}
 
+	sub mdb_set_compare(MDB_txn, int32, &cb (MDB-val, MDB-val -->int32))
+	    returns int32 is native(LIB) { * };
 	method set-compare(::?CLASS:D: dbi $dbi, &cb:(Str, Str) --> True) {
-	    sub mdb_set_compare(MDB_txn, int32, &cb (MDB-val, MDB-val -->int32))
-		returns int32 is native(LIB) { * };
 	    X::LMDB::TerminatedTxn.new.fail unless $!txn;
 	    #'&cb needs 2 arguments'.fail unless &cb.arity + &vb.count == 2;
 	    my &wrapper = -> MDB-val $a, MDB-val $b --> int32 {
@@ -499,6 +503,7 @@ our class Env {
 	}
 
 	class Cursor does Iterator {
+
 	    class MDB_cursor is repr('CPointer') is Any {
 		sub mdb_cursor_open(MDB_txn, int32, Pointer[MDB_cursor] is rw)
 		    returns int32 is native(LIB) { * };
@@ -524,9 +529,9 @@ our class Env {
 		self.new(:$Txn, :$dbi);
 	    }
 
+	    sub mdb_cursor_get(MDB_cursor $c, MDB-val $k, MDB-val $d, int32 $op)
+		returns int32 is native(LIB) { * };
 	    method get($key is rw, $data is rw, Int $op, :$im) {
-		sub mdb_cursor_get(MDB_cursor $c, MDB-val $k, MDB-val $d, int32 $op)
-		    returns int32 is native(LIB) { * };
 		my $k = MDB-val.new-from-any($key);
 		my $d = MDB-val.new-from-any($data);
 		if mdb_cursor_get($!cursor, $k, $d, $op) -> $code {
