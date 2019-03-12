@@ -27,15 +27,15 @@ on your system:
 
   * Ubuntu
 
-    `apt-get install liblmdb-dev`
+    `apt-get install liblmdb0`
 
 * The lmdb library must be compiled and installed for the NativeCall machinery to found it
 
 ## INSTALLATION
 
-You install this module with panda:
+You install this module with zef:
 
-    panda install LMDB
+    zef install LMDB
 
 ## USE
 
@@ -49,4 +49,4 @@ be aware that the API isn't in stone yet. See TODO
 
 ## COPYRIGHT
 
-Copyright © 2016 by Salvador Ortiz Garcia
+Copyright © 2016-2019 by Salvador Ortiz Garcia

@@ -3,7 +3,7 @@ language: perl6
 sudo: true
 before_install:
     - sudo apt-get -qq update
-    - sudo apt-get install -qq -y liblmdb-dev
+    - sudo apt-get install -qq -y liblmdb0
     - rakudobrew build zef
     - zef install File::Temp
 perl6:
