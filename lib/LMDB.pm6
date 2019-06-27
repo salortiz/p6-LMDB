@@ -2,7 +2,7 @@ use v6;
 
 use NativeCall :ALL;
 
-unit module LMDB:ver<0.0.3>;
+unit module LMDB:ver<0.0.4>;
 
 sub MyLibName {
     %*ENV<LIBLMDB> || guess_library_name(('lmdb',v0.0.0));
@@ -95,8 +95,10 @@ my class MDB-val is repr('CStruct') {
     has CArray[uint8]	$.mv_buff;
 
     submethod BUILD(CArray[uint8] :$mv_buff) {
-	$!mv_size = $mv_buff.elems;
-	$!mv_buff := $mv_buff;
+	with $mv_buff {
+	    $!mv_size = $_.elems;
+	    $!mv_buff := $_;
+	}
     }
     method new-from-buf(Blob $b) {
 	self.bless(mv_buff => CArray[uint8].new($b.list));
@@ -181,7 +183,7 @@ our sub version() {
 our role dbi { }; # Used as a guard
 
 our class Env {
-	
+
     class MDB_env is repr('CPointer') is Any {
 	sub mdb_env_create(Pointer[MDB_env] is rw)
 	    returns int32 is native(LIB) { * };
