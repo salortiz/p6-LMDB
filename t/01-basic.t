@@ -2,14 +2,15 @@ use v6;
 use Test;
 use File::Temp;
 
-plan 77;
+plan 78;
 
-use-ok 'LMDB';
+use-ok 'LMDB' or do { diag "Can't continue"; exit 1 };
 
-#{
-#    my $a = LMDB::version;
-#    like $a, /^LMDB/, "Version $a";
-#}
+{
+    need LMDB;
+    my $a = LMDB::version;
+    like $a, /^LMDB/, "Version $a";
+}
 
 {
     use LMDB :flags;
